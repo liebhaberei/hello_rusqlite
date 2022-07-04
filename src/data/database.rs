@@ -58,17 +58,27 @@ impl Database {
     }
 
     fn insert_person(&self, person: &mut Person) -> Result<i32, Box<dyn error::Error>> {
-        match &person.address {
-            Some(address) => match &person.mobile {
-                Some(mobile) => self.connection.execute(
-                    "INSERT INTO person (first_name, last_name, mobile, address) VALUES (?1, ?2, ?3, ?4)",
-                    params![person.first_name, person.last_name, mobile, address.id],
-                )?,
-                None => self.connection.execute(
-                    "INSERT INTO person (first_name, last_name, address) VALUES (?1, ?2, ?3)",
-                    params![person.first_name, person.last_name, address.id],
-                )?,
-            },
+        match &mut person.address {
+            Some(address) => {
+                match person.address_id {
+                    Some(_) => {
+                        self.update_address(address)?;
+                    }
+                    None => {
+                        self.insert_address(address)?;
+                    }
+                };
+                match &person.mobile {
+                    Some(mobile) => self.connection.execute(
+                        "INSERT INTO person (first_name, last_name, mobile, address) VALUES (?1, ?2, ?3, ?4)",
+                        params![person.first_name, person.last_name, mobile, address.id],
+                    )?,
+                    None => self.connection.execute(
+                        "INSERT INTO person (first_name, last_name, address) VALUES (?1, ?2, ?3)",
+                        params![person.first_name, person.last_name, address.id],
+                    )?,
+                }
+            }
             None => match &person.mobile {
                 Some(mobile) => self.connection.execute(
                     "INSERT INTO person (first_name, last_name, mobile) VALUES (?1, ?2, ?3)",
@@ -266,16 +276,12 @@ mod tests {
             phone: None,
         };
 
-        let address_id = db.insert_address(&mut address)?;
-        assert!(address_id >= 0);
-        assert_eq!(address_id, address.id);
-
         let mut person = Person {
             id: -1,
             first_name: String::from("Max"),
             last_name: String::from("Mustermann"),
             mobile: None,
-            address_id: Some(address_id),
+            address_id: None,
             address: Some(address),
         };
 
@@ -298,16 +304,12 @@ mod tests {
             phone: None,
         };
 
-        let address_id = db.insert_address(&mut address)?;
-        assert!(address_id >= 0);
-        assert_eq!(address_id, address.id);
-
         let mut person = Person {
             id: -1,
             first_name: String::from("Max"),
             last_name: String::from("Mustermann"),
             mobile: None,
-            address_id: Some(address_id),
+            address_id: None,
             address: Some(address),
         };
 
