@@ -1,4 +1,4 @@
-use hello_rusqlite::Database;
+use hello_rusqlite::data::database::Database;
 use std::process;
 
 fn main() {
