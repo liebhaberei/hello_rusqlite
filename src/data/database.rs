@@ -130,6 +130,34 @@ impl Database {
         }
     }
 
+    fn get_persons(&self) -> Result<Vec<Person>, Box<dyn error::Error>> {
+        let mut stmt = self
+            .connection
+            .prepare("SELECT id, first_name, last_name, mobile, address FROM person")?;
+        let mut persons = stmt.query_map([], |row| {
+            Ok(Person {
+                id: row.get(0)?,
+                first_name: row.get(1)?,
+                last_name: row.get(2)?,
+                mobile: row.get(3)?,
+                address_id: row.get(4)?,
+                address: None,
+            })
+        })?;
+
+        let mut list: Vec<Person> = Vec::new();
+        for person in persons {
+            let mut person = person?;
+            if let Some(id) = person.address_id {
+                let address = self.get_address_by_id(id)?;
+                person.address = Some(address);
+            }
+            list.push(person);
+        }
+
+        Ok(list)
+    }
+
     fn insert_address(&self, address: &mut Address) -> Result<i32, Box<dyn error::Error>> {
         match &address.phone {
             Some(phone) => self.connection.execute(
@@ -342,6 +370,66 @@ mod tests {
 
         let person2 = db.get_person_by_id(id)?;
         assert_eq!(person, person2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_persons_empty() -> Result<(), Box<dyn error::Error>> {
+        let db = Database::open()?;
+        db.reset()?;
+
+        let persons = db.get_persons()?;
+
+        assert!(persons.len() == 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn get_persons() -> Result<(), Box<dyn error::Error>> {
+        let db = Database::open()?;
+        db.reset()?;
+
+        let mut address = Address {
+            id: -1,
+            street: String::from("Musterstraße 1"),
+            zip: String::from("00000"),
+            city: String::from("Musterstadt"),
+            phone: None,
+        };
+
+        let mut person = Person {
+            id: -1,
+            first_name: String::from("Max"),
+            last_name: String::from("Mustermann"),
+            mobile: None,
+            address_id: None,
+            address: Some(address),
+        };
+
+        let id = db.insert_person(&mut person)?;
+        assert!(id >= 0);
+        assert_eq!(id, person.id);
+
+        let mut person2 = Person {
+            id: -1,
+            first_name: String::from("Max"),
+            last_name: String::from("Mustermann"),
+            mobile: None,
+            address_id: None,
+            address: None,
+        };
+
+        let id = db.insert_person(&mut person2)?;
+        assert!(id >= 0);
+        assert_eq!(id, person2.id);
+
+        let persons = db.get_persons()?;
+
+        assert!(persons.len() == 2);
+        assert_eq!(persons[0], person);
+        assert_eq!(persons[1], person2);
 
         Ok(())
     }
